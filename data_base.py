@@ -4,57 +4,57 @@ from sqlalchemy import func
 
 Base = declarative_base()
 
-class Chats(Base):
-    __tablename__ = 'Chats'
+class Chat(Base):
+    __tablename__ = 'Chat'
     ChatId = Column(Integer, primary_key=True)
     Name = Column(String)
-    UsersInChat = relationship('UsersInChat', secondary='ChatUser', back_populates='Chats',
-                               primaryjoin='Chats.ChatId == ChatUser.ChatId',
-                               secondaryjoin='ChatUser.UserId == UsersInChat.UserId')
-    GoodUsers = relationship('GoodUsers', secondary='ChatUser', back_populates='Chats',
-                             primaryjoin='Chats.ChatId == ChatUser.ChatId',
-                             secondaryjoin='ChatUser.UserId == GoodUsers.UserId')
+    UserInChat = relationship('UserInChat', secondary='ChatUserConnection', back_populates='Chat',
+                               primaryjoin='Chat.ChatId == ChatUserConnection.ChatId',
+                               secondaryjoin='ChatUserConnection.UserId == UserInChat.UserId')
+    GoodUser = relationship('GoodUser', secondary='ChatUserConnection', back_populates='Chat',
+                             primaryjoin='Chat.ChatId == ChatUserConnection.ChatId',
+                             secondaryjoin='ChatUserConnection.UserId == GoodUser.UserId')
 
-class Users(Base):
-    __abstract__ = True
+class User(Base):
+    __tablename__ = 'Chat'
     UserId = Column(Integer, primary_key=True)
     Name = Column(String)
 
-class ChatUser(Base):
-    __tablename__ = 'ChatUser'
-    ChatId = Column(Integer, ForeignKey('Chats.ChatId'), primary_key=True)
-    UserId = Column(Integer, ForeignKey('UsersInChat.UserId'), primary_key=True)
+class ChatUserConnection(Base):
+    __tablename__ = 'ChatUserConnection'
+    ChatId = Column(Integer, ForeignKey('Chat.ChatId'), primary_key=True)
+    UserId = Column(Integer, ForeignKey('UserInChat.UserId'), primary_key=True)
 
-class UsersInChat(Users):
-    __tablename__ = 'UsersInChat'
-    Chats = relationship('Chats', secondary='ChatUser', back_populates='UsersInChat',
-                         primaryjoin='UsersInChat.UserId == ChatUser.UserId',
-                         secondaryjoin='ChatUser.ChatId == Chats.ChatId')
+class UserInChat(User):
+    __tablename__ = 'UserInChat'
+    Chats = relationship('Chat', secondary='ChatUserConnection', back_populates='UserInChat',
+                         primaryjoin='UserInChat.UserId == ChatUserConnection.UserId',
+                         secondaryjoin='ChatUserConnection.ChatId == Chat.ChatId')
 
-class GoodUsers(Users):
-    __tablename__ = 'GoodUsers'
-    Chats = relationship('Chats', secondary='ChatUser', back_populates='GoodUsers',
-                         primaryjoin='GoodUsers.UserId == ChatUser.UserId',
-                         secondaryjoin='ChatUser.ChatId == Chats.ChatId')
+class GoodUser(User):
+    __tablename__ = 'GoodUser'
+    Chats = relationship('Chat', secondary='ChatUserConnection', back_populates='GoodUser',
+                         primaryjoin='GoodUser.UserId == ChatUserConnection.UserId',
+                         secondaryjoin='ChatUserConnection.ChatId == Chat.ChatId')
 
 engine = create_engine('sqlite:///chinook.db')
 Base.metadata.create_all(engine)
 
-chat = Chats(Name='General Chat')
-user = UsersInChat(Name='John Doe')
-good_user = GoodUsers(Name='Jane Doe')
+# chat = Chat(Name='General Chat')
+# user = UserInChat(Name='John Doe')
+# good_user = GoodUser(Name='Jane Doe')
 
-chat.UsersInChat.append(user)
-chat.GoodUsers.append(good_user)
+# chat.UsersInChat.append(user)
+# chat.GoodUsers.append(good_user)
 
-Session = sessionmaker(bind=engine)
-session = Session()
+# Session = sessionmaker(bind=engine)
+# session = Session()
 
 
-chats_counts_q = session.query(
-    Chats.Name, func.count(ChatUser.UserId)
-).select_from(Chats).join(ChatUser).group_by(Chats.Name)
+# chats_counts_q = session.query(
+#     Chat.Name, func.count(ChatUserConnection.UserId)
+# ).select_from(Chat).join(ChatUserConnection).group_by(Chat.Name)
 
-chats_counts = chats_counts_q.all()
-for chat, count in chats_counts:
-    print(f"list = {chat}, count = {count}")
+# chats_counts = chats_counts_q.all()
+# for chat, count in chats_counts:
+#     print(f"list = {chat}, count = {count}")
