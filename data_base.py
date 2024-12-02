@@ -1,70 +1,60 @@
-from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Boolean
-from sqlalchemy.orm import relationship, sessionmaker, declarative_base
+from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Table
+from sqlalchemy.orm import relationship, declarative_base, sessionmaker
+from sqlalchemy import func
 
 Base = declarative_base()
 
-class User(Base):
-    __tablename__ = 'users'
-    id = Column(Integer, primary_key=True)
-    username = Column(String, unique=True, nullable=False)
+class Chats(Base):
+    __tablename__ = 'Chats'
+    ChatId = Column(Integer, primary_key=True)
+    Name = Column(String)
+    UsersInChat = relationship('UsersInChat', secondary='ChatUser', back_populates='Chats',
+                               primaryjoin='Chats.ChatId == ChatUser.ChatId',
+                               secondaryjoin='ChatUser.UserId == UsersInChat.UserId')
+    GoodUsers = relationship('GoodUsers', secondary='ChatUser', back_populates='Chats',
+                             primaryjoin='Chats.ChatId == ChatUser.ChatId',
+                             secondaryjoin='ChatUser.UserId == GoodUsers.UserId')
 
-class ValidUser(Base):
-    __tablename__ = 'valid_users'
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
-    user = relationship("User", back_populates="valid_users")
+class Users(Base):
+    __abstract__ = True
+    UserId = Column(Integer, primary_key=True)
+    Name = Column(String)
 
-class Chat(Base):
-    __tablename__ = 'chats'
-    id = Column(Integer, primary_key=True)
-    name = Column(String, unique=True, nullable=False)
+class ChatUser(Base):
+    __tablename__ = 'ChatUser'
+    ChatId = Column(Integer, ForeignKey('Chats.ChatId'), primary_key=True)
+    UserId = Column(Integer, ForeignKey('UsersInChat.UserId'), primary_key=True)
 
-class UserInChat(Base):
-    __tablename__ = 'user_in_chat'
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
-    chat_id = Column(Integer, ForeignKey('chats.id'), nullable=False)
-    is_valid = Column(Boolean, default=False)
+class UsersInChat(Users):
+    __tablename__ = 'UsersInChat'
+    Chats = relationship('Chats', secondary='ChatUser', back_populates='UsersInChat',
+                         primaryjoin='UsersInChat.UserId == ChatUser.UserId',
+                         secondaryjoin='ChatUser.ChatId == Chats.ChatId')
 
-    user = relationship("User", back_populates="chats")
-    chat = relationship("Chat", back_populates="users")
+class GoodUsers(Users):
+    __tablename__ = 'GoodUsers'
+    Chats = relationship('Chats', secondary='ChatUser', back_populates='GoodUsers',
+                         primaryjoin='GoodUsers.UserId == ChatUser.UserId',
+                         secondaryjoin='ChatUser.ChatId == Chats.ChatId')
 
-# Связи
-User.valid_users = relationship("ValidUser", order_by=ValidUser.id, back_populates="user")
-User.chats = relationship("UserInChat", order_by=UserInChat.id, back_populates="user")
-
-Chat.users = relationship("UserInChat", order_by=UserInChat.id, back_populates="chat")
-
-# Создание базы данных
-engine = create_engine('sqlite:///chat_db.db')
+engine = create_engine('sqlite:///chinook.db')
 Base.metadata.create_all(engine)
 
-# Создание сессии
+chat = Chats(Name='General Chat')
+user = UsersInChat(Name='John Doe')
+good_user = GoodUsers(Name='Jane Doe')
+
+chat.UsersInChat.append(user)
+chat.GoodUsers.append(good_user)
+
 Session = sessionmaker(bind=engine)
 session = Session()
 
-# # Пример использования
-# # Создание пользователя
-# user1 = User(username="user1")
-# session.add(user1)
-# session.commit()
-#
-# # Создание валидного пользователя
-# valid_user1 = ValidUser(user=user1)
-# session.add(valid_user1)
-# session.commit()
-#
-# # Создание чата
-# chat1 = Chat(name="chat1")
-# session.add(chat1)
-# session.commit()
-#
-# # Добавление пользователя в чат
-# user_in_chat1 = UserInChat(user=user1, chat=chat1, is_valid=True)
-# session.add(user_in_chat1)
-# session.commit()
-#
-# # Получение всех пользователей в чате
-# chat_users = session.query(UserInChat).filter_by(chat_id=chat1.id).all()
-# for user_in_chat in chat_users:
-#     print(f"User: {user_in_chat.user.username}, Valid: {user_in_chat.is_valid}")
+
+chats_counts_q = session.query(
+    Chats.Name, func.count(ChatUser.UserId)
+).select_from(Chats).join(ChatUser).group_by(Chats.Name)
+
+chats_counts = chats_counts_q.all()
+for chat, count in chats_counts:
+    print(f"list = {chat}, count = {count}")
