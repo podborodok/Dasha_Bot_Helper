@@ -1,81 +1,57 @@
-from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Boolean
+from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Boolean, Table, Text
 from sqlalchemy.orm import relationship, sessionmaker, declarative_base
+import os
 
 Base = declarative_base()
 
-class User(Base):
-    __tablename__ = 'users'
-    id = Column(Integer, primary_key=True)
-    username = Column(String, unique=True, nullable=False)
+chat_user = Table(
+    'chat_user',
+    Base.metadata,
+    Column('chat_id', ForeignKey('chat.id'), primary_key=True),
+    Column('user_id', ForeignKey('user.id'), primary_key=True),
+    Column('valid', Boolean, default=False),
+    extend_existing=True,
+)
 
-class ValidUser(Base):
-    __tablename__ = 'valid_users'
+class User(Base):
+    __tablename__ = 'user'
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
-    user = relationship("User", back_populates="valid_users")
+    name = Column(String(50))
 
 class Chat(Base):
-    __tablename__ = 'chats'
+    __tablename__ = 'chat'
     id = Column(Integer, primary_key=True)
-    name = Column(String, unique=True, nullable=False)
+    title = Column(String)
+    users = relationship('User', secondary=chat_user, backref='chats')
+    valid_users_str = Column(Text)  # Используем Text для хранения строки
 
-class UserInChat(Base):
-    __tablename__ = 'user_in_chat'
-    id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
-    chat_id = Column(Integer, ForeignKey('chats.id'), nullable=False)
-    is_valid = Column(Boolean, default=False)
+    @property
+    def valid_users(self):
+        if self.valid_users_str:
+            return self.valid_users_str.split(',')
+        return []
 
-    user = relationship("User", back_populates="chats")
-    chat = relationship("Chat", back_populates="users")
+    @valid_users.setter
+    def valid_users(self, value):
+        self.valid_users_str = ','.join(value)
+    def add_user(self, user, valid=False):
+        self.users.append(user)
+        if valid:
+            self.valid_users = self.valid_users + [user.name]
+    def add_valid_user(self, username):
+        self.valid_users = self.valid_users + [username]
 
-# Связи
-User.valid_users = relationship("ValidUser", order_by=ValidUser.id, back_populates="user")
-User.chats = relationship("UserInChat", order_by=UserInChat.id, back_populates="user")
+    def delete_from_valid_users(self, username):
+        if username in self.valid_users:
+            self.valid_users = [name for name in self.valid_users if name != username]
 
-Chat.users = relationship("UserInChat", order_by=UserInChat.id, back_populates="chat")
-
-# Создание базы данных
-engine = create_engine('sqlite:///chat_db.db')
-Base.metadata.create_all(engine)
-
-# Создание сессии
-Session = sessionmaker(bind=engine)
-session = Session()
-
-# Пример использования
-
-# Проверка на существование пользователя
-existing_user = session.query(User).filter_by(username="user1").first()
-if not existing_user:
-    # Создание пользователя
-    user1 = User(username="user1")
-    session.add(user1)
-    session.commit()
-else:
-    user1 = existing_user
-
-# Создание валидного пользователя
-valid_user1 = ValidUser(user=user1)
-session.add(valid_user1)
-session.commit()
-
-# Проверка на существование чата
-existing_chat = session.query(Chat).filter_by(name="chat1").first()
-if not existing_chat:
-    # Создание чата
-    chat1 = Chat(name="chat1")
-    session.add(chat1)
-    session.commit()
-else:
-    chat1 = existing_chat
-
-# Добавление пользователя в чат
-user_in_chat1 = UserInChat(user=user1, chat=chat1, is_valid=True)
-session.add(user_in_chat1)
-session.commit()
-
-# Получение всех пользователей в чате
-chat_users = session.query(UserInChat).filter_by(chat_id=chat1.id).all()
-for user_in_chat in chat_users:
-    print(f"User: {user_in_chat.user.username}, Valid: {user_in_chat.is_valid}")
+    def commit_users(self, session):
+        for user in self.users:
+            is_valid = user.name in self.valid_users
+            existing_entry = session.query(chat_user).filter_by(chat_id=self.id, user_id=user.id).first()
+            if not existing_entry:
+                session.execute(chat_user.insert().values(chat_id=self.id, user_id=user.id, valid=is_valid))
+            else:
+                session.execute(chat_user.update().where(chat_user.c.chat_id == self.id).where(
+                    chat_user.c.user_id == user.id).values(valid=is_valid))
+        session.commit()
