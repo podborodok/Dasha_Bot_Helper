@@ -2,7 +2,7 @@ import unittest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from data_base import User, Chat, Base, chat_user
-from functions import show_commands, call_dasha_func, add_chat_to_db_func, add_users_to_valid_list, delete_users_from_valid_list
+from bot.functions import show_commands, call_dasha_func, add_chat_to_db_func, add_users_to_valid_list, delete_users_from_valid_list
 from unittest.mock import MagicMock, patch
 
 
@@ -99,7 +99,7 @@ class TestDatabase(unittest.TestCase):
         self.assertEqual(len(users), 3)
         self.assertEqual([users[0].id, users[0].name], [user1.id, user1.username])
         self.assertEqual([users[1].id, users[1].name], [user2.id, user2.username])
-        self.message.reply_text.assert_called_once_with("Done. Ready to kick.")
+        self.message.reply_text.assert_called_once_with(f"Done. Chat id is {self.message.chat.id}")
 
     def test_valid_no_chat(self):
         self.message.text = "/valid Alica Bob"
@@ -374,6 +374,3 @@ class TestDatabase(unittest.TestCase):
         self.assertEqual(user_count, 2)
         user_count_valid = self.session.query(chat_user).filter_by(chat_id=self.message2.chat.id, valid=True).count()
         self.assertEqual(user_count_valid, 1)
-
-
-
