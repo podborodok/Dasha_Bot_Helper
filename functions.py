@@ -17,10 +17,6 @@ def call_dasha_func(client, message, session, app):
         message.reply_text("Please run /add_chat first.")
         return
     valid_users = current_chat.valid_users
-    if len(valid_users) == 0:
-        message.reply_text(f"Valid list is empty.")
-    else:
-        message.reply_text(f"Valid users are: {', '.join(valid_users)}")
     if (chat_member_status == app.get_chat_member(chat_id, user_id).status.OWNER or chat_member_status == app.get_chat_member(chat_id, user_id).status.ADMINISTRATOR):
         count_kick = 0
         for member in app.get_chat_members(chat_id):
@@ -31,8 +27,6 @@ def call_dasha_func(client, message, session, app):
                 count_kick += 1
         if (count_kick > 0):
             message.reply_text(f"Haha -{count_kick}😜")
-        else:
-            message.reply_text("All members stayed in chat.")
     else:
         message.reply_text(f"You have no rights here, @{app.get_chat_member(chat_id, user_id).user.username} 😘🥇")
 
@@ -93,10 +87,14 @@ def delete_users_from_valid_list(client, message, session, app):
     not_valid_users = list(set(command_parts[1:]))
     current_chat = session.query(Chat).filter_by(id=chat_id).first()
     if not current_chat:
-        message.reply_text("Please run /add_chat first")
+        message.reply_text("Please run /add_chat first.")
         return
     if not (chat_member_status == app.get_chat_member(chat_id,user_id).status.OWNER or chat_member_status == app.get_chat_member(chat_id, user_id).status.ADMINISTRATOR):
         message.reply_text(f"You have no rights here, @{app.get_chat_member(chat_id, user_id).user.username} 😘🥇")
+        return
+    if len(not_valid_users) == 0:
+        print("No one is deleted, the list sent is empty.")
+        message.reply_text("No one is deleted, the list sent is empty.")
         return
     for not_valid_user in not_valid_users:
         current_chat.delete_from_valid_users(not_valid_user)
