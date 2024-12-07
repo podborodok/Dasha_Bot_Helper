@@ -23,13 +23,14 @@ def call_dasha_func(client, message, session, app):
             member_username = member.user.username
             member_status = app.get_chat_member(chat_id, member.user.id).status
             if member_username not in valid_users and member.user.id != app.get_me().id and (member_status != app.get_chat_member(chat_id, member.user.id).status.OWNER and member_status != app.get_chat_member(chat_id, member.user.id).status.ADMINISTRATOR):
+                current_chat.delete_user_from_chat(member.user.id, session)
+                session.commit()
                 app.ban_chat_member(chat_id, member.user.id)
                 count_kick += 1
-        if (count_kick > 0):
+        if count_kick > 0:
             message.reply_text(f"Haha -{count_kick}😜")
     else:
         message.reply_text(f"You have no rights here, @{app.get_chat_member(chat_id, user_id).user.username} 😘🥇")
-
 
 def add_chat_to_db_func(client, message, session):
     chat_id = message.chat.id
@@ -50,7 +51,7 @@ def add_chat_to_db_func(client, message, session):
         current_chat.add_user(current_user, valid=False)
 
     session.commit()
-    message.reply_text("Done. Ready to kick.")
+    message.reply_text(f"Done. Chat id is {chat_id}")
 
 
 def add_users_to_valid_list(client, message, session, app):
