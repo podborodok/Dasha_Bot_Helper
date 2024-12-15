@@ -1,16 +1,20 @@
-from data_base import User, Chat, Base, chat_user
+from Dasha_Bot_Helper import data_base
+from Dasha_Bot_Helper.data_base import User, Chat, Base, chat_user
 
 def show_commands(client, message, session):
     message.reply_text(
         "**Commands:**\n\n"
         "🔹 Firstly Run /add_chat to add this chat to my database.\n"
         "🔹 Run /valid {usernames} to add these usernames to the valid list.\n"
-        "🔹 Run /not_valid {usernames} to delete these usernames from the valid list.\n"
+        "🔹 Run /not_valid {usernames} to delete these uszernames from the valid list.\n"
         "🔹 Run /call_dasha to kick chat members who are not from the valid list and have no administrator status."
     )
-def call_dasha_func(client, message, session, app):
+def call_dasha_func(client, message, session, app, private = False):
     user_id = message.from_user.id
-    chat_id = message.chat.id
+    if private:
+        chat_id = message.text.split()[1]
+    else:
+        chat_id = message.chat.id
     chat_member_status = app.get_chat_member(chat_id, user_id).status
     current_chat = session.query(Chat).filter_by(id=chat_id).first()
     if not current_chat:
@@ -54,13 +58,17 @@ def add_chat_to_db_func(client, message, session):
     message.reply_text(f"Done. Chat id is {chat_id}")
 
 
-def add_users_to_valid_list(client, message, session, app):
+def add_users_to_valid_list(client, message, session, app, private = False):
     user_id = message.from_user.id
-    chat_id = message.chat.id
-    chat_member_status = app.get_chat_member(chat_id, user_id).status
-
     command_parts = message.text.split()
-    valid_users = list(set(command_parts[1:]))
+    if private:
+        chat_id = int(command_parts[1])
+        valid_users = command_parts[2:]
+    else:
+        chat_id = message.chat.id
+        valid_users = command_parts[1:]
+
+    chat_member_status = app.get_chat_member(chat_id, user_id).status
     current_chat = session.query(Chat).filter_by(id=chat_id).first()
     if not current_chat:
         message.reply_text("Please run /add_chat first.")
@@ -80,12 +88,16 @@ def add_users_to_valid_list(client, message, session, app):
     else:
         message.reply_text(f"{', '.join(valid_users)} are added to valid list.")
 
-def delete_users_from_valid_list(client, message, session, app):
+def delete_users_from_valid_list(client, message, session, app, private = False):
     user_id = message.from_user.id
-    chat_id = message.chat.id
-    chat_member_status = app.get_chat_member(chat_id, user_id).status
     command_parts = message.text.split()
-    not_valid_users = list(set(command_parts[1:]))
+    if private:
+        chat_id = command_parts[1]
+        not_valid_users = command_parts[2:]
+    else:
+        chat_id = message.chat.id
+        not_valid_users = command_parts[1:]
+    chat_member_status = app.get_chat_member(chat_id, user_id).status
     current_chat = session.query(Chat).filter_by(id=chat_id).first()
     if not current_chat:
         message.reply_text("Please run /add_chat first.")

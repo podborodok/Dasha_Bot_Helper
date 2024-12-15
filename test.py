@@ -2,8 +2,8 @@ import unittest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from data_base import User, Chat, Base, chat_user
-from bot.functions import show_commands, call_dasha_func, add_chat_to_db_func, add_users_to_valid_list, delete_users_from_valid_list
-from unittest.mock import MagicMock, patch
+from functions import show_commands, call_dasha_func, add_chat_to_db_func, add_users_to_valid_list, delete_users_from_valid_list
+from unittest.mock import MagicMock
 
 
 class TestDatabase(unittest.TestCase):
