@@ -6,12 +6,12 @@ from sqlalchemy.orm import relationship, sessionmaker, declarative_base
 import os
 from pyrogram import Client
 from pyrogram import filters
-from functions import show_commands, call_dasha_func, add_chat_to_db_func, add_users_to_valid_list, delete_users_from_valid_list
+from functions import show_commands, call_dasha_func, add_chat_to_db_func, add_users_to_valid_list, delete_users_from_valid_list, get_chat_id_func, get_valid_func
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 
-API_ID = 'API_ID'
-API_HASH = 'API_HASH'
-BOT_TOKEN = 'BOT_TOKEN'
+API_ID = '21525796'
+API_HASH = '16fea793880f439407350514d18cc693'
+BOT_TOKEN = '7761593693:AAFhWb4lIhzYiMv7GBpGOnkZ5d5qs2ajttg'
 
 def build():
     global session
@@ -29,6 +29,14 @@ app = Client("my_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 @app.on_message(filters.group & filters.command('commands'))
 def commands(client, message):
     show_commands(client, message, session)
+
+@app.on_message(filters.group & filters.command('get_chat_id'))
+def get_chat_id(client, message):
+    get_chat_id_func(client, message, session)
+
+@app.on_message(filters.group & filters.command('get_valid'))
+def get_valid(client, message):
+    get_valid_func(client, message, session)
 @app.on_message(filters.group & filters.command('call_dasha'))
 def call_dasha(client, message):
     call_dasha_func(client, message, session, app)

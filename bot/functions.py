@@ -1,18 +1,40 @@
 from Dasha_Bot_Helper import data_base
 from Dasha_Bot_Helper.data_base import User, Chat, Base, chat_user
-
+from pyrogram.enums import ChatMemberStatus
+from pyrogram import Client, filters
+from pyrogram.types import ChatMember
+from unittest.mock import MagicMock
 def show_commands(client, message, session):
     message.reply_text(
         "**Commands:**\n\n"
         "🔹 Firstly Run /add_chat to add this chat to my database.\n"
         "🔹 Run /valid {usernames} to add these usernames to the valid list.\n"
-        "🔹 Run /not_valid {usernames} to delete these uszernames from the valid list.\n"
-        "🔹 Run /call_dasha to kick chat members who are not from the valid list and have no administrator status."
+        "🔹 Run /not_valid {usernames} to delete these usernames from the valid list.\n"
+        "🔹 Run /call_dasha to kick chat members who are not from the valid list and have no administrator status.\n"
+        "🔹 Run /get_chat_id to get chat id.\n"
+        "🔹 Run /get_valid to get list of valid users"
     )
+
+def get_chat_id_func(client, message, session):
+    chat_id = message.chat.id
+    current_chat = session.query(Chat).filter_by(id=chat_id).first()
+    if not current_chat:
+        message.reply_text("Please run /add_chat first.")
+        return
+    message.reply_text(f"Chat id is {chat_id}")
+
+def get_valid_func(client, message, session):
+    chat_id = message.chat.id
+    current_chat = session.query(Chat).filter_by(id=chat_id).first()
+    if not current_chat:
+        message.reply_text("Please run /add_chat first.")
+        return
+    valid_users = current_chat.valid_users
+    message.reply_text(f"{', '.join(valid_users)} in valid list.")
 def call_dasha_func(client, message, session, app, private = False):
     user_id = message.from_user.id
     if private:
-        chat_id = message.text.split()[1]
+        chat_id = int(message.text.split()[1])
     else:
         chat_id = message.chat.id
     chat_member_status = app.get_chat_member(chat_id, user_id).status
@@ -21,18 +43,20 @@ def call_dasha_func(client, message, session, app, private = False):
         message.reply_text("Please run /add_chat first.")
         return
     valid_users = current_chat.valid_users
-    if (chat_member_status == app.get_chat_member(chat_id, user_id).status.OWNER or chat_member_status == app.get_chat_member(chat_id, user_id).status.ADMINISTRATOR):
+    if (chat_member_status == ChatMemberStatus.OWNER or chat_member_status == ChatMemberStatus.ADMINISTRATOR):
         count_kick = 0
         for member in app.get_chat_members(chat_id):
             member_username = member.user.username
             member_status = app.get_chat_member(chat_id, member.user.id).status
-            if member_username not in valid_users and member.user.id != app.get_me().id and (member_status != app.get_chat_member(chat_id, member.user.id).status.OWNER and member_status != app.get_chat_member(chat_id, member.user.id).status.ADMINISTRATOR):
-                current_chat.delete_user_from_chat(member.user.id, session)
+            if member_username not in valid_users and member.user.id != app.get_me().id and member_status != ChatMemberStatus.OWNER  and member_status != ChatMemberStatus.ADMINISTRATOR:
+                # current_chat.delete_user_from_chat(member.user.id, session)
                 session.commit()
                 app.ban_chat_member(chat_id, member.user.id)
                 count_kick += 1
         if count_kick > 0:
             message.reply_text(f"Haha -{count_kick}😜")
+        else:
+            message.reply_text(f"Everyone stayed")
     else:
         message.reply_text(f"You have no rights here, @{app.get_chat_member(chat_id, user_id).user.username} 😘🥇")
 
@@ -92,7 +116,7 @@ def delete_users_from_valid_list(client, message, session, app, private = False)
     user_id = message.from_user.id
     command_parts = message.text.split()
     if private:
-        chat_id = command_parts[1]
+        chat_id = int(command_parts[1])
         not_valid_users = command_parts[2:]
     else:
         chat_id = message.chat.id
@@ -106,8 +130,10 @@ def delete_users_from_valid_list(client, message, session, app, private = False)
         message.reply_text(f"You have no rights here, @{app.get_chat_member(chat_id, user_id).user.username} 😘🥇")
         return
     if len(not_valid_users) == 0:
-        print("No one is deleted, the list sent is empty.")
         message.reply_text("No one is deleted, the list sent is empty.")
+        return
+    if session.query(chat_user).filter_by(chat_id=chat_id, valid=True).count() == 0:
+        message.reply_text("There is no one to delete.")
         return
     for not_valid_user in not_valid_users:
         current_chat.delete_from_valid_users(not_valid_user)

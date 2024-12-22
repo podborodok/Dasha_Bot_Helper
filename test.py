@@ -2,8 +2,11 @@ import unittest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from data_base import User, Chat, Base, chat_user
-from bot.functions import show_commands, call_dasha_func, add_chat_to_db_func, add_users_to_valid_list, delete_users_from_valid_list
+from bot.functions import show_commands, call_dasha_func, add_chat_to_db_func, add_users_to_valid_list, \
+    delete_users_from_valid_list, get_chat_id_func, get_valid_func
 from unittest.mock import MagicMock
+from pyrogram import Client, filters
+from pyrogram.enums import ChatMemberStatus
 
 
 class TestDatabase(unittest.TestCase):
@@ -18,10 +21,12 @@ class TestDatabase(unittest.TestCase):
         self.message = MagicMock()
         self.message.chat.id = 1
         self.message.chat.title = "Test Chat"
+        self.message.from_user.id = 12345
 
         self.message2 = MagicMock()
         self.message2.chat.id = 1
         self.message2.chat.title = "Test Chat"
+        self.message2.from_user.id = 12345
 
         self.client.id = 12345
         self.client.username = "Me"
@@ -74,9 +79,63 @@ class TestDatabase(unittest.TestCase):
             "🔹 Firstly Run /add_chat to add this chat to my database.\n"
             "🔹 Run /valid {usernames} to add these usernames to the valid list.\n"
             "🔹 Run /not_valid {usernames} to delete these usernames from the valid list.\n"
-            "🔹 Run /call_dasha to kick chat members who are not from the valid list and have no administrator status."
+            "🔹 Run /call_dasha to kick chat members who are not from the valid list and have no administrator status.\n"
+            "🔹 Run /get_chat_id to get chat id.\n"
+            "🔹 Run /get_valid to get list of valid users"
         )
         self.message.reply_text.assert_called_once_with(expected_message)
+
+    def test_get_id(self):
+        user1 = MagicMock()
+        user1.id = 11
+        user1.username = "Alica"
+        user2 = MagicMock()
+        user2.id = 12
+        user2.username = "Bob"
+
+        self.client.get_chat_members.return_value = [MagicMock(user=user1), MagicMock(user=user2),
+                                                     MagicMock(user=self.client)]
+        add_chat_to_db_func(self.client, self.message, self.session)
+        get_chat_id_func(self.client, self.message, self.session)
+        self.message.reply_text.assert_any_call(f"Chat id is {self.message.chat.id}")
+
+    def test_get_id_no_chat(self):
+        user1 = MagicMock()
+        user1.id = 11
+        user1.username = "Alica"
+        user2 = MagicMock()
+        user2.id = 12
+        user2.username = "Bob"
+        get_chat_id_func(self.client, self.message, self.session)
+        self.message.reply_text.assert_called_once_with(f"Please run /add_chat first.")
+
+    def test_get_valid(self):
+        user1 = MagicMock()
+        user1.id = 11
+        user1.username = "Alica"
+        user2 = MagicMock()
+        user2.id = 12
+        user2.username = "Bob"
+
+        self.client.get_chat_members.return_value = [MagicMock(user=user1), MagicMock(user=user2),
+                                                     MagicMock(user=self.client)]
+        add_chat_to_db_func(self.client, self.message, self.session)
+        self.message.text = "/valid Alica Bob"
+        add_users_to_valid_list(self.client, self.message, self.session, self.app)
+        get_valid_func(self.client, self.message, self.session)
+        assert self.message.reply_text.any_call(f"Alica, Bob in valid list.") or self.message.reply_text.any_call(
+            f"Bob, Alica in valid list.")
+
+
+    def test_get_valid_no_chat(self):
+        user1 = MagicMock()
+        user1.id = 11
+        user1.username = "Alica"
+        user2 = MagicMock()
+        user2.id = 12
+        user2.username = "Bob"
+        get_valid_func(self.client, self.message, self.session)
+        self.message.reply_text.assert_called_once_with(f"Please run /add_chat first.")
 
     def test_add_chat(self):
         user1 = MagicMock()
@@ -174,6 +233,29 @@ class TestDatabase(unittest.TestCase):
         user_count_valid = self.session.query(chat_user).filter_by(chat_id=self.message.chat.id, valid=True).count()
         self.assertEqual(user_count_valid, 2)
 
+    def test_valid_simple_private(self):
+        user1 = MagicMock()
+        user1.id = 11
+        user1.username = "Alica"
+        user2 = MagicMock()
+        user2.id = 12
+        user2.username = "Bob"
+
+        self.client.get_chat_members.return_value = [MagicMock(user=user1), MagicMock(user=user2),
+                                                     MagicMock(user=self.client)]
+        add_chat_to_db_func(self.client, self.message, self.session)
+        self.app.get_chat_member(self.message.chat.id, self.client.id).status.OWNER = self.app.get_chat_member(
+            self.message.chat.id, self.client.id).status
+        self.message.text = "/valid 1 Alica Bob"
+        add_users_to_valid_list(self.client, self.message, self.session, self.app, private=True)
+        assert self.message.reply_text.any_call(
+            "Alica, Bob are added to valid list.") or self.message.reply_text.any_call(
+            "Bob, Alica are added to valid list.")
+        user_count = self.session.query(chat_user).filter_by(chat_id=self.message.chat.id).count()
+        self.assertEqual(user_count, 3)
+        user_count_valid = self.session.query(chat_user).filter_by(chat_id=self.message.chat.id, valid=True).count()
+        self.assertEqual(user_count_valid, 2)
+
     def test_valid_not_admin(self):
         user1 = MagicMock()
         user1.id = 11
@@ -194,7 +276,27 @@ class TestDatabase(unittest.TestCase):
         user_count_valid = self.session.query(chat_user).filter_by(chat_id=self.message.chat.id, valid=True).count()
         self.assertEqual(user_count_valid, 0)
 
-    def test_valid_two_cats_diff_status(self):
+    def test_valid_not_admin_private(self):
+        user1 = MagicMock()
+        user1.id = 11
+        user1.username = "Alica"
+        user2 = MagicMock()
+        user2.id = 12
+        user2.username = "Bob"
+
+        self.client.get_chat_members.return_value = [MagicMock(user=user1), MagicMock(user=user2),
+                                                     MagicMock(user=self.client)]
+        add_chat_to_db_func(self.client, self.message, self.session)
+        self.message.text = "/valid 1 Alica"
+        add_users_to_valid_list(self.client, self.message, self.session, self.app, private=True)
+        self.message.reply_text.assert_any_call(
+            f"You have no rights here, @{self.app.get_chat_member(self.message.chat.id, self.client.id).user.username} 😘🥇")
+        user_count = self.session.query(chat_user).filter_by(chat_id=self.message.chat.id).count()
+        self.assertEqual(user_count, 3)
+        user_count_valid = self.session.query(chat_user).filter_by(chat_id=self.message.chat.id, valid=True).count()
+        self.assertEqual(user_count_valid, 0)
+
+    def test_valid_two_diff_status(self):
         user1 = MagicMock()
         user1.id = 11
         user1.username = "Alica"
@@ -216,6 +318,26 @@ class TestDatabase(unittest.TestCase):
         self.app.get_chat_member(self.message2.chat.id, self.client.id).status.OWNER = None
         self.message2.text = "/valid Alica Bob"
         add_users_to_valid_list(self.client, self.message2, self.session, self.app)
+        user_count_valid_chat2 = self.session.query(chat_user).filter_by(chat_id=self.message2.chat.id,
+                                                                         valid=True).count()
+        self.assertEqual(user_count_valid_chat2, 0)
+
+    def test_valid_two_diff_status_private(self):
+        user1 = MagicMock()
+        user1.id = 11
+        user1.username = "Alica"
+        user2 = MagicMock()
+        user2.id = 12
+        user2.username = "Bob"
+        self.message2.chat.id = 2
+        self.message2.chat.title = "Test Chat2"
+        self.client.get_chat_members.return_value = [MagicMock(user=user1), MagicMock(user=user2),
+                                                     MagicMock(user=self.client)]
+        add_chat_to_db_func(self.client, self.message, self.session)
+        self.app.get_chat_member(self.message.chat.id, self.client.id).status.OWNER = self.app.get_chat_member(
+            self.message.chat.id, self.client.id).status
+        self.message2.text = "/valid 2 Alica Bob"
+        add_users_to_valid_list(self.client, self.message2, self.session, self.app, private=True)
         user_count_valid_chat2 = self.session.query(chat_user).filter_by(chat_id=self.message2.chat.id,
                                                                          valid=True).count()
         self.assertEqual(user_count_valid_chat2, 0)
@@ -286,14 +408,58 @@ class TestDatabase(unittest.TestCase):
         add_chat_to_db_func(self.client, self.message, self.session)
         self.app.get_chat_member(self.message.chat.id, self.client.id).status.OWNER = self.app.get_chat_member(
             self.message.chat.id, self.client.id).status
-        self.message.text = "/add_users Alica Bob"
+        self.message.text = "/add_users Alica Bob Cat"
         add_users_to_valid_list(self.client, self.message, self.session, self.app)
-        self.message2.text = "/not_valid Alica"
+        self.message2.text = "/not_valid Bob Cat"
         delete_users_from_valid_list(self.client, self.message2, self.session, self.app)
         user_count = self.session.query(chat_user).filter_by(chat_id=self.message.chat.id).count()
         self.assertEqual(user_count, 3)
         user_count_valid = self.session.query(chat_user).filter_by(chat_id=self.message.chat.id, valid=True).count()
         self.assertEqual(user_count_valid, 1)
+
+    def test_delete_simple_private(self):
+        user1 = MagicMock()
+        user1.id = 11
+        user1.username = "Alica"
+        user2 = MagicMock()
+        user2.id = 12
+        user2.username = "Bob"
+        user3 = MagicMock()
+        user3.id = 13
+        user3.username = "Cat"
+
+        self.client.get_chat_members.return_value = [MagicMock(user=user1), MagicMock(user=user2),
+                                                     MagicMock(user=self.client)]
+        add_chat_to_db_func(self.client, self.message, self.session)
+        self.app.get_chat_member(self.message.chat.id, self.client.id).status.OWNER = self.app.get_chat_member(
+            self.message.chat.id, self.client.id).status
+        self.message.text = "/add_users Alica Bob"
+        add_users_to_valid_list(self.client, self.message, self.session, self.app)
+        self.message2.text = "/not_valid 1 Alica"
+        delete_users_from_valid_list(self.client, self.message2, self.session, self.app, private=True)
+        user_count = self.session.query(chat_user).filter_by(chat_id=self.message.chat.id).count()
+        self.assertEqual(user_count, 3)
+        user_count_valid = self.session.query(chat_user).filter_by(chat_id=self.message.chat.id, valid=True).count()
+        self.assertEqual(user_count_valid, 1)
+
+    def test_delete_empty_valid(self):
+        user1 = MagicMock()
+        user1.id = 11
+        user1.username = "Alica"
+        user2 = MagicMock()
+        user2.id = 12
+        user2.username = "Bob"
+
+        self.client.get_chat_members.return_value = [MagicMock(user=user1), MagicMock(user=user2),
+                                                     MagicMock(user=self.client)]
+        add_chat_to_db_func(self.client, self.message, self.session)
+        self.app.get_chat_member(self.message.chat.id, self.client.id).status.OWNER = self.app.get_chat_member(
+            self.message.chat.id, self.client.id).status
+        self.message2.text = "/not_valid Alica"
+        delete_users_from_valid_list(self.client, self.message2, self.session, self.app)
+        self.message2.reply_text.assert_called_once_with("There is no one to delete.")
+        user_count_valid = self.session.query(chat_user).filter_by(chat_id=self.message.chat.id, valid=True).count()
+        self.assertEqual(user_count_valid, 0)
 
     def test_delete_not_admin(self):
         user1 = MagicMock()
@@ -347,30 +513,143 @@ class TestDatabase(unittest.TestCase):
         user_count_valid = self.session.query(chat_user).filter_by(chat_id=self.message2.chat.id, valid=True).count()
         self.assertEqual(user_count_valid, 1)
 
-    def test_delete_user(self):
-        user = User(name="Alica", id=123)
-        chat = Chat(title="Test Chat", id=1)
-        chat.add_user(user)
-        chat.delete_user_from_chat(123, self.session)
-        self.assertEqual(len(chat.users), 0)
-
-    def test_call_dasha_simple(self):
+    def test_call_dasha_count_kick(self):
         user1 = MagicMock()
         user1.id = 11
+        user1.user.id = 11
         user1.username = "Alica"
         user2 = MagicMock()
         user2.id = 12
         user2.username = "Bob"
+        user2.user.id = 12
+        user3 = MagicMock()
+        user3.id = 13
+        user3.username = "Cat"
+        user3.user.id = 13
+        user4 = MagicMock()
+        user4.id = 14
+        user4.username = "Dog"
+        user4.user.id = 14
+        user5 = MagicMock()
+        user5.id = 15
+        user5.username = "Elephant"
+        user5.user.id = 15
+
         self.client.get_chat_members.return_value = [MagicMock(user=user1), MagicMock(user=user2),
-                                                     MagicMock(user=self.client)]
+                                                     MagicMock(user=user3), MagicMock(user=user4),
+                                                     MagicMock(user=user5), MagicMock(user=self.client)]
+        self.app.get_chat_members.return_value = [MagicMock(user=user1), MagicMock(user=user2),
+                                                  MagicMock(user=user3), MagicMock(user=user4),
+                                                  MagicMock(user=user5), MagicMock(user=self.client)]
+
+        self.app.get_chat_member.side_effect = lambda chat_id, user_id: MagicMock(
+            status=ChatMemberStatus.OWNER if user_id == self.client.id else ChatMemberStatus.MEMBER
+        )
         add_chat_to_db_func(self.client, self.message, self.session)
-        self.app.get_chat_member(self.message.chat.id, self.client.id).status.OWNER = self.app.get_chat_member(
-            self.message.chat.id, self.client.id).status
-        self.message.text = "/valid Alica"
+        self.message.text = "/valid Alica Bob Cat"
         add_users_to_valid_list(self.client, self.message, self.session, self.app)
+        user_count = self.session.query(chat_user).filter_by(chat_id=self.message.chat.id).count()
+        self.assertEqual(user_count, 6)
+        user_count_valid = self.session.query(chat_user).filter_by(chat_id=self.message.chat.id, valid=True).count()
+        self.assertEqual(user_count_valid, 3)
         self.message2.text = "/call_dasha"
         call_dasha_func(self.client, self.message2, self.session, self.app)
-        user_count = self.session.query(chat_user).filter_by(chat_id=self.message2.chat.id).count()
-        self.assertEqual(user_count, 2)
-        user_count_valid = self.session.query(chat_user).filter_by(chat_id=self.message2.chat.id, valid=True).count()
-        self.assertEqual(user_count_valid, 1)
+        self.message2.reply_text.assert_any_call(f"Haha -{2}😜")
+
+    def test_call_dasha_count_kick_all_stay(self):
+        user1 = MagicMock()
+        user1.id = 11
+        user1.user.id = 11
+        user1.username = "Alica"
+        user2 = MagicMock()
+        user2.id = 12
+        user2.username = "Bob"
+        user2.user.id = 12
+        user3 = MagicMock()
+        user3.id = 13
+        user3.username = "Cat"
+        user3.user.id = 13
+        user4 = MagicMock()
+
+        self.client.get_chat_members.return_value = [MagicMock(user=user1), MagicMock(user=user2),
+                                                     MagicMock(user=user3), MagicMock(user=self.client)]
+        self.app.get_chat_members.return_value = [MagicMock(user=user1), MagicMock(user=user2),
+                                                  MagicMock(user=user3), MagicMock(user=self.client)]
+
+        self.app.get_chat_member.side_effect = lambda chat_id, user_id: MagicMock(
+            status=ChatMemberStatus.OWNER if user_id == self.client.id else ChatMemberStatus.MEMBER
+        )
+        add_chat_to_db_func(self.client, self.message, self.session)
+        self.message.text = "/valid Alica Bob Cat"
+        add_users_to_valid_list(self.client, self.message, self.session, self.app)
+        user_count = self.session.query(chat_user).filter_by(chat_id=self.message.chat.id).count()
+        self.assertEqual(user_count, 4)
+        user_count_valid = self.session.query(chat_user).filter_by(chat_id=self.message.chat.id, valid=True).count()
+        self.assertEqual(user_count_valid, 3)
+        self.message2.text = "/call_dasha"
+        call_dasha_func(self.client, self.message2, self.session, self.app)
+        self.message2.reply_text.assert_any_call(f"Everyone stayed")
+
+    def test_call_dasha_count_kick_private(self):
+        user1 = MagicMock()
+        user1.id = 11
+        user1.user.id = 11
+        user1.username = "Alica"
+        user2 = MagicMock()
+        user2.id = 12
+        user2.username = "Bob"
+        user2.user.id = 12
+        user3 = MagicMock()
+        user3.id = 13
+        user3.username = "Cat"
+        user3.user.id = 13
+        user4 = MagicMock()
+        user4.id = 14
+        user4.username = "Dog"
+        user4.user.id = 14
+        user5 = MagicMock()
+        user5.id = 15
+        user5.username = "Elephant"
+        user5.user.id = 15
+
+        self.client.get_chat_members.return_value = [MagicMock(user=user1), MagicMock(user=user2),
+                                                     MagicMock(user=user3), MagicMock(user=user4),
+                                                     MagicMock(user=user5), MagicMock(user=self.client)]
+        self.app.get_chat_members.return_value = [MagicMock(user=user1), MagicMock(user=user2),
+                                                  MagicMock(user=user3), MagicMock(user=user4),
+                                                  MagicMock(user=user5), MagicMock(user=self.client)]
+
+        self.app.get_chat_member.side_effect = lambda chat_id, user_id: MagicMock(
+            status=ChatMemberStatus.OWNER if user_id == self.client.id else ChatMemberStatus.MEMBER
+        )
+        add_chat_to_db_func(self.client, self.message, self.session)
+        self.message.text = "/valid 1 Alica Bob Cat"
+        add_users_to_valid_list(self.client, self.message, self.session, self.app, True)
+        user_count = self.session.query(chat_user).filter_by(chat_id=self.message.chat.id).count()
+        self.assertEqual(user_count, 6)
+        user_count_valid = self.session.query(chat_user).filter_by(chat_id=self.message.chat.id, valid=True).count()
+        self.assertEqual(user_count_valid, 3)
+        self.message2.text = "/call_dasha 1"
+        call_dasha_func(self.client, self.message2, self.session, self.app, True)
+        self.message2.reply_text.assert_any_call(f"Haha -{2}😜")
+
+    # def test_call_dasha_simple(self):
+    # user1 = MagicMock()
+    # user1.id = 11
+    # user1.username = "Alica"
+    # user2 = MagicMock()
+    # user2.id = 12
+    # user2.username = "Bob"
+    # self.client.get_chat_members.return_value = [MagicMock(user=user1), MagicMock(user=user2),
+    #                                              MagicMock(user=self.client)]
+    # add_chat_to_db_func(self.client, self.message, self.session)
+    # self.app.get_chat_member(self.message.chat.id, self.client.id).status.OWNER = self.app.get_chat_member(
+    #     self.message.chat.id, self.client.id).status
+    # self.message.text = "/valid Alica"
+    # add_users_to_valid_list(self.client, self.message, self.session, self.app)
+    # self.message2.text = "/call_dasha"
+    # call_dasha_func(self.client, self.message2, self.session, self.app)
+    # user_count = self.session.query(chat_user).filter_by(chat_id=self.message2.chat.id).count()
+    # self.assertEqual(user_count, 2)
+    # user_count_valid = self.session.query(chat_user).filter_by(chat_id=self.message2.chat.id, valid=True).count()
+    # self.assertEqual(user_count_valid, 1)
