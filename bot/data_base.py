@@ -34,6 +34,7 @@ class Chat(Base):
     @valid_users.setter
     def valid_users(self, value):
         self.valid_users_str = ','.join(value)
+
     def add_user(self, user, valid=False):
         self.users.append(user)
         if valid:

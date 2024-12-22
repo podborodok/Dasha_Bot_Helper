@@ -1,11 +1,10 @@
 import unittest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from data_base import User, Chat, Base, chat_user
+from bot.data_base import User, Chat, Base, chat_user
 from bot.functions import show_commands, call_dasha_func, add_chat_to_db_func, add_users_to_valid_list, \
     delete_users_from_valid_list, get_chat_id_func, get_valid_func
 from unittest.mock import MagicMock
-from pyrogram import Client, filters
 from pyrogram.enums import ChatMemberStatus
 
 
