@@ -9,9 +9,9 @@ from pyrogram import filters
 from functions import show_commands, call_dasha_func, add_chat_to_db_func, add_users_to_valid_list, delete_users_from_valid_list, get_chat_id_func, get_valid_func
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 
-API_ID = '21525796'
-API_HASH = '16fea793880f439407350514d18cc693'
-BOT_TOKEN = '7761593693:AAFhWb4lIhzYiMv7GBpGOnkZ5d5qs2ajttg'
+API_ID = 'API_ID'
+API_HASH = 'API_HASH'
+BOT_TOKEN = 'BOT_TOKEN'
 
 def build():
     global session
