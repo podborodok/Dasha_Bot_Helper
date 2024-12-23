@@ -1,12 +1,11 @@
-from Dasha_Bot_Helper import data_base
-from Dasha_Bot_Helper.data_base import User, Chat, Base, chat_user
+from bot.data_base import User, Chat, Base, chat_user
 import asyncio
 from sqlalchemy import create_engine, Column, Integer, String, ForeignKey, Boolean
 from sqlalchemy.orm import relationship, sessionmaker, declarative_base
 import os
 from pyrogram import Client
 from pyrogram import filters
-from functions import show_commands, call_dasha_func, add_chat_to_db_func, add_users_to_valid_list, delete_users_from_valid_list, get_chat_id_func, get_valid_func
+from bot.functions import show_commands, call_dasha_func, add_chat_to_db_func, add_users_to_valid_list, delete_users_from_valid_list, get_chat_id_func, get_valid_func, new_valid_func
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
 
 API_ID = 'API_ID'
@@ -36,10 +35,12 @@ def get_chat_id(client, message):
 
 @app.on_message(filters.group & filters.command('get_valid'))
 def get_valid(client, message):
-    get_valid_func(client, message, session)
+    get_valid_func(client, message, session, app)
+
 @app.on_message(filters.group & filters.command('call_dasha'))
 def call_dasha(client, message):
     call_dasha_func(client, message, session, app)
+
 @app.on_message(filters.group & filters.command("add_chat"))
 def add_chat_to_db(client, message):
     add_chat_to_db_func(client, message, session)
@@ -47,9 +48,14 @@ def add_chat_to_db(client, message):
 @app.on_message(filters.group & filters.command('valid'))
 def valid(client, message):
     add_users_to_valid_list(client, message, session, app)
+
 @app.on_message(filters.group & filters.command('not_valid'))
 def not_valid(client, message):
     delete_users_from_valid_list(client, message, session, app)
+
+@app.on_message(filters.group & filters.command('new_valid'))
+def new_valid(client, message):
+    new_valid_func(client, message, session, app)
 
 @app.on_message(filters.private & filters.command('call_dasha'))
 def call_dasha(client, message):
@@ -58,8 +64,17 @@ def call_dasha(client, message):
 @app.on_message(filters.command('valid') & filters.private)
 def valid(client, message):
     add_users_to_valid_list(client, message, session, app, True)
+
 @app.on_message(filters.command('not_valid') & filters.private)
 def not_valid(client, message):
     delete_users_from_valid_list(client, message, session, app, True)
+
+@app.on_message(filters.command('get_valid') & filters.private)
+def get_valid(client, message):
+    get_valid_func(client, message, session, app, True)
+
+@app.on_message(filters.command('new_valid') & filters.private)
+def new_valid(client, message):
+    new_valid_func(client, message, session, app, True)
 
 app.run()

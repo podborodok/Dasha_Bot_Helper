@@ -1,5 +1,4 @@
-from Dasha_Bot_Helper import data_base
-from Dasha_Bot_Helper.data_base import User, Chat, Base, chat_user
+from bot.data_base import User, Chat, Base, chat_user
 from pyrogram.enums import ChatMemberStatus
 from pyrogram import Client, filters
 from pyrogram.types import ChatMember
@@ -23,14 +22,64 @@ def get_chat_id_func(client, message, session):
         return
     message.reply_text(f"Chat id is {chat_id}")
 
-def get_valid_func(client, message, session):
-    chat_id = message.chat.id
+def new_valid_func(client, message, session, app, private = False):
+    user_id = message.from_user.id
+    command_parts = message.text.split()
+    if private:
+        chat_id = int(command_parts[1])
+        valid_users = command_parts[2:]
+    else:
+        chat_id = message.chat.id
+        valid_users = command_parts[1:]
+
     current_chat = session.query(Chat).filter_by(id=chat_id).first()
     if not current_chat:
+        if private:
+            message.reply_text("No chat with this id found.")
+            return
         message.reply_text("Please run /add_chat first.")
         return
+
+    chat_member_status = app.get_chat_member(chat_id, user_id).status
+    if not (chat_member_status == app.get_chat_member(chat_id,
+                                                      user_id).status.OWNER or chat_member_status == app.get_chat_member(
+            chat_id, user_id).status.ADMINISTRATOR):
+        message.reply_text(f"You have no rights here, @{app.get_chat_member(chat_id, user_id).user.username} 😘🥇")
+        return
+
+    for user in current_chat.valid_users:
+        current_chat.delete_from_valid_users(user)
+    for user in valid_users:
+        current_chat.add_valid_user(user)
+    message.reply_text("Valid list is changed.")
+
+def get_valid_func(client, message, session, app, private = False):
+    user_id = message.from_user.id
+    command_parts = message.text.split()
+    if private:
+        chat_id = int(command_parts[1])
+    else:
+        chat_id = message.chat.id
+
+    current_chat = session.query(Chat).filter_by(id=chat_id).first()
+    if not current_chat:
+        if private:
+            message.reply_text("No chat with this id found.")
+            return
+        message.reply_text("Please run /add_chat first.")
+        return
+
+    chat_member_status = app.get_chat_member(chat_id, user_id).status
+    if not (chat_member_status == app.get_chat_member(chat_id,
+                                                      user_id).status.OWNER or chat_member_status == app.get_chat_member(
+            chat_id, user_id).status.ADMINISTRATOR):
+        message.reply_text(f"You have no rights here, @{app.get_chat_member(chat_id, user_id).user.username} 😘🥇")
+        return
+
     valid_users = current_chat.valid_users
     message.reply_text(f"{', '.join(valid_users)} in valid list.")
+
+
 def call_dasha_func(client, message, session, app, private = False):
     user_id = message.from_user.id
     if private:
@@ -56,7 +105,7 @@ def call_dasha_func(client, message, session, app, private = False):
         if count_kick > 0:
             message.reply_text(f"Haha -{count_kick}😜")
         else:
-            message.reply_text(f"Everyone stayed")
+            message.reply_text(f"Everyone stayed in chat")
     else:
         message.reply_text(f"You have no rights here, @{app.get_chat_member(chat_id, user_id).user.username} 😘🥇")
 
@@ -92,11 +141,15 @@ def add_users_to_valid_list(client, message, session, app, private = False):
         chat_id = message.chat.id
         valid_users = command_parts[1:]
 
-    chat_member_status = app.get_chat_member(chat_id, user_id).status
     current_chat = session.query(Chat).filter_by(id=chat_id).first()
     if not current_chat:
+        if private:
+            message.reply_text("No chat with this id found.")
+            return
         message.reply_text("Please run /add_chat first.")
         return
+
+    chat_member_status = app.get_chat_member(chat_id, user_id).status
     if not (chat_member_status == app.get_chat_member(chat_id,user_id).status.OWNER or chat_member_status == app.get_chat_member(chat_id, user_id).status.ADMINISTRATOR):
         message.reply_text(f"You have no rights here, @{app.get_chat_member(chat_id, user_id).user.username} 😘🥇")
         return
@@ -121,11 +174,15 @@ def delete_users_from_valid_list(client, message, session, app, private = False)
     else:
         chat_id = message.chat.id
         not_valid_users = command_parts[1:]
-    chat_member_status = app.get_chat_member(chat_id, user_id).status
     current_chat = session.query(Chat).filter_by(id=chat_id).first()
     if not current_chat:
+        if private:
+            message.reply_text("No chat with this id found.")
+            return
         message.reply_text("Please run /add_chat first.")
         return
+
+    chat_member_status = app.get_chat_member(chat_id, user_id).status
     if not (chat_member_status == app.get_chat_member(chat_id,user_id).status.OWNER or chat_member_status == app.get_chat_member(chat_id, user_id).status.ADMINISTRATOR):
         message.reply_text(f"You have no rights here, @{app.get_chat_member(chat_id, user_id).user.username} 😘🥇")
         return

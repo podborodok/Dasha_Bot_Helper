@@ -587,7 +587,7 @@ class TestDatabase(unittest.TestCase):
         self.assertEqual(user_count_valid, 3)
         self.message2.text = "/call_dasha"
         call_dasha_func(self.client, self.message2, self.session, self.app)
-        self.message2.reply_text.assert_any_call(f"Everyone stayed")
+        self.message2.reply_text.assert_any_call(f"Everyone stayed in chat")
 
     def test_call_dasha_count_kick_private(self):
         user1 = MagicMock()
