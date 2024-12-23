@@ -11,7 +11,8 @@ def show_commands(client, message, session):
         "🔹 Run /not_valid {usernames} to delete these usernames from the valid list.\n"
         "🔹 Run /call_dasha to kick chat members who are not from the valid list and have no administrator status.\n"
         "🔹 Run /get_chat_id to get chat id.\n"
-        "🔹 Run /get_valid to get list of valid users"
+        "🔹 Run /get_valid to get list of valid users.\n"
+        "🔹 Run /new_valid{usernames} changes a valid list to a new list."
     )
 
 def get_chat_id_func(client, message, session):
@@ -86,11 +87,14 @@ def call_dasha_func(client, message, session, app, private = False):
         chat_id = int(message.text.split()[1])
     else:
         chat_id = message.chat.id
-    chat_member_status = app.get_chat_member(chat_id, user_id).status
     current_chat = session.query(Chat).filter_by(id=chat_id).first()
     if not current_chat:
+        if private:
+            message.reply_text("No chat with this id found.")
+            return
         message.reply_text("Please run /add_chat first.")
         return
+    chat_member_status = app.get_chat_member(chat_id, user_id).status
     valid_users = current_chat.valid_users
     if (chat_member_status == ChatMemberStatus.OWNER or chat_member_status == ChatMemberStatus.ADMINISTRATOR):
         count_kick = 0
@@ -188,9 +192,6 @@ def delete_users_from_valid_list(client, message, session, app, private = False)
         return
     if len(not_valid_users) == 0:
         message.reply_text("No one is deleted, the list sent is empty.")
-        return
-    if session.query(chat_user).filter_by(chat_id=chat_id, valid=True).count() == 0:
-        message.reply_text("There is no one to delete.")
         return
     for not_valid_user in not_valid_users:
         current_chat.delete_from_valid_users(not_valid_user)
